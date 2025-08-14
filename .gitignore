@@ -136,7 +136,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # Storybook build outputs
 .out
@@ -146,22 +145,6 @@ public
 tmp/
 temp/
 
-# ========================================
-# 🎨 Modèles ML et Données
-# ========================================
-# Modèles ONNX (peuvent être volumineux)
-public/models/*.onnx
-public/models/*.bin
-public/models/*.safetensors
-public/models/*.pth
-public/models/*.pt
-
-# Images de style (peuvent être volumineuses)
-public/styles/*.jpg
-public/styles/*.jpeg
-public/styles/*.png
-public/styles/*.gif
-public/styles/*.webp
 
 # Données d'entraînement
 data/
