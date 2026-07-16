@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Air Hockey – Controller</title>
+  <style>
+    html,body{margin:0;height:100%;background:#0b0e12;color:#e6edf3;font-family:system-ui}
+    .wrap{display:flex;flex-direction:column;height:100%}
+    header,footer{padding:12px}
+    main{flex:1;position:relative;min-height:40vh}
+    /* ⬇️ zone tactile : ajout d’un fond quasi-transparent pour fiabiliser le hit-test iOS */
+    .pad{
+      position:absolute;inset:0;
+      touch-action:none;
+      background:rgba(0,0,0,0.001);
+      user-select:none; -webkit-user-select:none;
+      -webkit-touch-callout:none;
+      -webkit-tap-highlight-color:transparent;
+      overscroll-behavior:none;
+    }
+    input,button{font-size:16px}
+    .row{display:flex;gap:8px;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="row">
+      <select id="side"><option value="left">P1 gauche</option><option value="right">P2 droite</option></select>
+      <button id="join">Rejoindre</button>
+      <span id="status">—</span>
+    </header>
+    <main>
+      <div id="field" class="pad"></div>
+    </main>
+    <footer>Glisse ton doigt pour bouger le mallet.</footer>
+  </div>
+
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let joined = false;
+    let side = 'left';
+    const statusEl = document.getElementById('status');
+
+    document.getElementById('join').onclick = () => {
+      side = document.getElementById('side').value;
+      socket.emit('controller:join', { side });
+    };
+
+    socket.on('controller:joined', ({ side }) => {
+      joined = true;
+      statusEl.textContent = `Connecté en ${side}`;
+    });
+    socket.on('error', (e)=> alert(e.msg || 'Erreur'));
+
+    const pad = document.getElementById('field');
+    let nx = 0.5, ny = 0.5, lastNx = nx, lastNy = ny;
+
+    function toNorm(ev){
+      const r = pad.getBoundingClientRect();
+      const x = (ev.clientX - r.left) / r.width;
+      const y = (ev.clientY - r.top) / r.height;
+      nx = Math.max(0, Math.min(1, x));
+      ny = Math.max(0, Math.min(1, y));
+    }
+
+    function handlePointer(e){ toNorm(e); }
+    function handleTouch(e){
+      if (e.touches && e.touches.length) toNorm(e.touches[0]);
+      e.preventDefault(); // empêche scroll/zoom
+    }
+
+    // ——— ÉVÈNEMENTS ROBUSTES ———
+    // Pointer Events (tactile/souris/stylet)
+    pad.addEventListener('pointerdown', e => {
+      if (pad.setPointerCapture) pad.setPointerCapture(e.pointerId);
+      handlePointer(e);
+    }, {passive:false}); // non-passif = plus sûr sur iOS
+    pad.addEventListener('pointermove', handlePointer, {passive:false});
+
+    // Fallback Touch pour variantes iOS
+    pad.addEventListener('touchstart', handleTouch, {passive:false});
+    pad.addEventListener('touchmove',  handleTouch, {passive:false});
+
+    // Fallback souris (desktop)
+    pad.addEventListener('mousedown', handlePointer);
+    pad.addEventListener('mousemove', handlePointer);
+
+    // Boucle d’envoi : 40 Hz + deadband 1.5 %
+    const SEND_HZ = 40;
+    const MIN_DELTA = 0.015;
+    setInterval(() => {
+      if (!joined) return;
+      const dx = Math.abs(nx - lastNx);
+      const dy = Math.abs(ny - lastNy);
+      if (dx > MIN_DELTA || dy > MIN_DELTA) {
+        lastNx = nx; lastNy = ny;
+        socket.emit('control', { nx, ny, ts: performance.now() });
+      }
+    }, 1000 / SEND_HZ);
+  </script>
+</body>
+</html>

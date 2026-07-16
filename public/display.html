@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Air Hockey Multi-device</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #0b0e12; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #game { position: fixed; inset: 0; }
+    canvas { display:block; width:100%; height:100%; }
+    .hud { position: fixed; left: 0; right: 0; top: 0; padding: 10px; color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; pointer-events:none; font-size:14px; }
+    .hud .right { display:flex; gap:12px; align-items:center; }
+    .btn { pointer-events:auto;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px; }
+    #score { pointer-events:auto; font-weight:600; letter-spacing:.5px; }
+  </style>
+</head>
+<body>
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <div id="game"></div>
+
+  <div class="hud">
+    <div id="score">0 - 0</div>
+    <div class="right">
+      <div id="ctrlsBadge">Ctrl: 0</div>
+      <div id="status">Socket.IO…</div>
+      <button id="toggleLogo" class="btn">Logo: ON</button>
+    </div>
+  </div>
+
+  <script>
+    // ===== Canvas / World =====
+    const container = document.getElementById('game');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    container.appendChild(canvas);
+
+    let w = 0, h = 0, dpr = window.devicePixelRatio || 1;
+
+    const world = {
+      margin: 20,
+      puck: { x: 0, y: 0, vx: 420, vy: 200, r: 45 },
+      m1:   { x: 0, y: 0, r: 50, px: 0, py: 0, vx: 0, vy: 0 },
+      m2:   { x: 0, y: 0, r: 50, px: 0, py: 0, vx: 0, vy: 0 },
+    };
+
+    const physics = {
+      drag: 0.01,
+      wallRestitution: 1.02,
+      malletRestitution: 1.20,   // rebond franc
+      speedMax: 1800
+    };
+
+    // vitesse mini de séparation après contact (px/s)
+    const AWAY_MIN = 140;
+
+    function layout() {
+      w = window.innerWidth;
+      h = window.innerHeight;
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(w * dpr));
+      canvas.height = Math.max(1, Math.floor(h * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Positions par défaut / recentrage
+      world.puck.x = w * 0.5; world.puck.y = h * 0.5;
+      world.m1.x = w * 0.25; world.m1.y = h * 0.5;
+      world.m2.x = w * 0.75; world.m2.y = h * 0.5;
+      world.m1.px = world.m1.x; world.m1.py = world.m1.y;
+      world.m2.px = world.m2.x; world.m2.py = world.m2.y;
+    }
+    layout();
+    window.addEventListener('resize', layout);
+
+    // ===== Logo (optionnel) =====
+    const logo = new Image();
+    let logoReady = false;
+    let useLogo = true;
+    let logoTrail = [];
+
+    function updateLogoBtn() {
+      const btn = document.getElementById('toggleLogo');
+      if (btn) btn.textContent = `Logo: ${useLogo ? 'ON' : 'OFF'}`;
+    }
+
+    logo.onload = () => { logoReady = true; updateLogoBtn(); };
+    logo.onerror = () => { logoReady = false; useLogo = false; updateLogoBtn(); };
+    logo.src = '/logo.png';
+
+    document.getElementById('toggleLogo').addEventListener('click', () => {
+      useLogo = !useLogo;
+      updateLogoBtn();
+    });
+
+    function getOptimalLogoSize(targetDiameter) {
+      if (!logoReady || !logo.width || !logo.height) return { width: targetDiameter, height: targetDiameter };
+      const ar = logo.width / logo.height;
+      return ar > 1 ? { width: targetDiameter, height: targetDiameter / ar }
+                    : { width: targetDiameter * ar, height: targetDiameter };
+    }
+    function getLogoCollisionBox() {
+      if (!logoReady || !logo.width || !logo.height) {
+        return { type: 'circle', radius: world.puck.r };
+      }
+      const size = world.puck.r * 4;
+      const { width, height } = getOptimalLogoSize(size);
+      return {
+        type: 'rectangle',
+        x: world.puck.x - width/2,
+        y: world.puck.y - height/2,
+        width, height,
+        centerX: world.puck.x,
+        centerY: world.puck.y
+      };
+    }
+    function updateLogoTrail() {
+      if (!useLogo || !logoReady) return;
+      const speed = Math.hypot(world.puck.vx, world.puck.vy);
+      if (speed > 200) {
+        logoTrail.push({ x: world.puck.x, y: world.puck.y, alpha: 0.3, size: world.puck.r * 0.8 });
+        if (logoTrail.length > 8) logoTrail.shift();
+      }
+      for (const t of logoTrail) { t.alpha -= 0.02; t.size *= 0.95; }
+      logoTrail = logo.filter ? logoTrail.filter(t => t.alpha > 0.05) : logoTrail;
+    }
+
+    // ===== Réseau (Socket.IO) =====
+    const socket = typeof io !== 'undefined' ? io() : null;
+    const netTargets = { left: null, right: null }; // { nx, ny, ts }
+
+    const ctrlsBadgeEl = document.getElementById('ctrlsBadge');
+    const statusEl = document.getElementById('status');
+
+    if (socket) {
+      socket.emit('display:join');
+
+      socket.on('room:status', ({ count, sides, hasDisplay }) => {
+        if (ctrlsBadgeEl) ctrlsBadgeEl.textContent = `Ctrl: ${count|0}`;
+        if (statusEl) {
+          statusEl.textContent = hasDisplay
+            ? `Display OK · L:${sides.left ? '✔' : '—'} R:${sides.right ? '✔' : '—'}`
+            : 'En attente du display…';
+        }
+      });
+
+      // Positions des contrôleurs
+      socket.on('control', ({ side, nx, ny }) => {
+        const s = (side === 'right') ? 'right' : 'left';
+        netTargets[s] = {
+          nx: Math.max(0, Math.min(1, Number(nx))),
+          ny: Math.max(0, Math.min(1, Number(ny))),
+          ts: performance.now()
+        };
+      });
+    }
+
+    // ===== Application des commandes réseau =====
+    function applyNetControls() {
+      if (!netTargets.left && !netTargets.right) return;
+
+      const m = world.margin, R = world.m1.r, mid = w * 0.5;
+      const now = performance.now();
+      const recentThreshold = 100; // ms
+      const lerp = 0.8;            // suivi quasi direct (rebond sec)
+
+      const moveTo = (obj, tx, ty) => {
+        obj.x += (tx - obj.x) * lerp;
+        obj.y += (ty - obj.y) * lerp;
+      };
+
+      if (netTargets.left && (now - netTargets.left.ts) < recentThreshold) {
+        const { nx, ny } = netTargets.left;
+        const tx = (m+R) + nx * ((mid - R) - (m+R));
+        const ty = (m+R) + ny * ((h - m - R) - (m+R));
+        moveTo(world.m1, tx, ty);
+      }
+      if (netTargets.right && (now - netTargets.right.ts) < recentThreshold) {
+        const { nx, ny } = netTargets.right;
+        const tx = (mid+R) + nx * ((w - m - R) - (mid+R));
+        const ty = (m+R) + ny * ((h - m - R) - (m+R));
+        moveTo(world.m2, tx, ty);
+      }
+    }
+
+    // ===== Utilitaires / Physique =====
+    const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+    function clampSpeed() {
+      const s = Math.hypot(world.puck.vx, world.puck.vy);
+      if (s > physics.speedMax) {
+        const k = physics.speedMax / s;
+        world.puck.vx *= k; world.puck.vy *= k;
+      }
+    }
+    function amplifyPuck() {
+      const cur = Math.hypot(world.puck.vx, world.puck.vy) || 1e-6;
+      const target = cur * physics.wallRestitution;
+      const k = Math.min(target/cur, physics.speedMax/cur);
+      world.puck.vx *= k; world.puck.vy *= k;
+    }
+
+    // Impulsion + anti-stick : garantit une vitesse de séparation minimale
+    function impulseAway(nx, ny, m){
+      const rvx = world.puck.vx - m.vx, rvy = world.puck.vy - m.vy;
+      const rel = rvx*nx + rvy*ny;
+
+      // rebond si on s'approche
+      if (rel < 0){
+        const e = physics.malletRestitution;
+        const j = -(1 + e) * rel;
+        world.puck.vx += j * nx;
+        world.puck.vy += j * ny;
+      }
+
+      // vitesse relative après correction
+      const newRel = (world.puck.vx - m.vx) * nx + (world.puck.vy - m.vy) * ny;
+      if (newRel < AWAY_MIN){
+        const gain = AWAY_MIN - newRel;
+        world.puck.vx += gain * nx;
+        world.puck.vy += gain * ny;
+      }
+      clampSpeed();
+    }
+
+    function collideMallet(m) {
+      const dx = world.puck.x - m.x, dy = world.puck.y - m.y;
+      const dist = Math.hypot(dx, dy) || 1e-6;
+      const R = world.puck.r + m.r;
+      if (dist >= R) return false;
+
+      // normale et séparation
+      const nx = dx / dist, ny = dy / dist;
+      const overlap = R - dist + 0.5; // slop pour éviter recroisements
+      world.puck.x += nx * overlap; world.puck.y += ny * overlap;
+
+      impulseAway(nx, ny, m);
+      return true;
+    }
+
+    // rectangle (logo) ↔ cercle (mallet) — gère inside + anti-stick
+    function collideRectangleCircle(rect, circle){
+      let nearestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
+      let nearestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
+      let dx = circle.x - nearestX;
+      let dy = circle.y - nearestY;
+      let dist2 = dx*dx + dy*dy;
+
+      let nx, ny;
+
+      if (dist2 > 0){
+        const dist = Math.sqrt(dist2);
+        if (dist >= circle.r) return false;
+        nx = dx / dist; ny = dy / dist;
+
+        // pousser le logo (puck) à l'opposé du mallet
+        const penetration = circle.r - dist + 0.5;
+        world.puck.x -= nx * penetration;
+        world.puck.y -= ny * penetration;
+
+        // normale pour l'impulsion doit pointer "du mallet vers le logo"
+        impulseAway(-nx, -ny, circle);
+      } else {
+        // centre du mallet DANS le rectangle : sortir par l'arête la plus proche
+        const leftPen   = circle.x - rect.x;
+        const rightPen  = (rect.x + rect.width)  - circle.x;
+        const topPen    = circle.y - rect.y;
+        const bottomPen = (rect.y + rect.height) - circle.y;
+
+        if (leftPen <= rightPen && leftPen <= topPen && leftPen <= bottomPen){ nx = -1; ny = 0; }
+        else if (rightPen <= topPen && rightPen <= bottomPen){ nx = 1; ny = 0; }
+        else if (topPen <= bottomPen){ nx = 0; ny = -1; }
+        else { nx = 0; ny = 1; }
+
+        const push = circle.r + 0.5;
+        world.puck.x -= nx * push;
+        world.puck.y -= ny * push;
+
+        impulseAway(-nx, -ny, circle);
+      }
+      return true;
+    }
+
+    function collideMalletAdvanced(m) {
+      if (useLogo && logoReady) {
+        const box = getLogoCollisionBox();
+        if (box.type === 'rectangle') return collideRectangleCircle(box, m);
+      }
+      return collideMallet(m);
+    }
+
+    // ===== Score =====
+    const scoreEl = document.getElementById('score');
+    let scoreL = 0, scoreR = 0;
+    function updateScore() { scoreEl.textContent = `${scoreL} - ${scoreR}`; }
+    function resetPuck(toward = 0) {
+      world.puck.x = w * 0.5; world.puck.y = h * 0.5;
+      const base = 520 + Math.random() * 180;
+      const dir = toward || (Math.random() < 0.5 ? -1 : 1);
+      const ang = (Math.random() * Math.PI / 6 - Math.PI / 12); // ±15°
+      world.puck.vx = Math.cos(ang) * base * dir;
+      world.puck.vy = Math.sin(ang) * base;
+    }
+
+    // ===== Boucle =====
+    let last = performance.now();
+    function frame(now) {
+      applyNetControls();
+
+      const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+      last = now;
+
+      // vitesses des mallets (pour collisions dynamiques)
+      world.m1.vx = (world.m1.x - world.m1.px) / Math.max(1e-6, dt);
+      world.m1.vy = (world.m1.y - world.m1.py) / Math.max(1e-6, dt);
+      world.m2.vx = (world.m2.x - world.m2.px) / Math.max(1e-6, dt);
+      world.m2.vy = (world.m2.y - world.m2.py) / Math.max(1e-6, dt);
+
+      // déplacement du palet / logo
+      world.puck.x += world.puck.vx * dt;
+      world.puck.y += world.puck.vy * dt;
+
+      // murs haut / bas
+      const m = world.margin, pr = world.puck.r;
+      const top = m + pr, bottom = h - m - pr;
+      if (world.puck.y < top)  { world.puck.y = top;    world.puck.vy = Math.abs(world.puck.vy); amplifyPuck(); }
+      if (world.puck.y > bottom){ world.puck.y = bottom; world.puck.vy = -Math.abs(world.puck.vy); amplifyPuck(); }
+
+      // buts gauche / droite
+      const leftGoal = m + pr, rightGoal = w - m - pr;
+      if (world.puck.x < leftGoal)  { scoreR++; updateScore(); resetPuck(-1); }
+      if (world.puck.x > rightGoal) { scoreL++; updateScore(); resetPuck( 1); }
+
+      // collisions : quelques itérations pour stabiliser
+      for (let i = 0; i < 4; i++) {
+        const c1 = collideMalletAdvanced(world.m1);
+        const c2 = collideMalletAdvanced(world.m2);
+        if (!(c1 || c2)) break;
+      }
+
+      // frottements & clamp
+      const dragK = Math.exp(-physics.drag * dt);
+      world.puck.vx *= dragK; world.puck.vy *= dragK; clampSpeed();
+
+      // trail logo
+      updateLogoTrail();
+
+      // ===== Rendu =====
+      ctx.clearRect(0, 0, w, h);
+
+      // table & ligne médiane
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8,10]);
+      ctx.beginPath();
+      ctx.moveTo(w/2, m);
+      ctx.lineTo(w/2, h - m);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // mallets
+      ctx.fillStyle = '#ff4d6d'; ctx.beginPath(); ctx.arc(world.m1.x, world.m1.y, world.m1.r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#1e90ff'; ctx.beginPath(); ctx.arc(world.m2.x, world.m2.y, world.m2.r, 0, Math.PI*2); ctx.fill();
+
+      // trail logo (dessus)
+      if (useLogo && logoReady && logoTrail.length) {
+        for (const t of logoTrail) {
+          const { width, height } = getOptimalLogoSize(t.size * 2);
+          ctx.save(); ctx.globalAlpha = t.alpha; ctx.translate(t.x, t.y);
+          ctx.drawImage(logo, -width/2, -height/2, width, height); ctx.restore();
+        }
+      }
+
+      // logo OU palet
+      if (useLogo && logoReady) {
+        const size = world.puck.r * 4;
+        const { width, height } = getOptimalLogoSize(size);
+        const speed = Math.hypot(world.puck.vx, world.puck.vy);
+        const glow = Math.min(0.3, speed / 1000);
+        ctx.save();
+        ctx.translate(world.puck.x, world.puck.y);
+        if (glow > 0.05) { ctx.shadowColor = '#fff'; ctx.shadowBlur = glow * 20; }
+        ctx.drawImage(logo, -width/2, -height/2, width, height);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(world.puck.x, world.puck.y, world.puck.r, 0, Math.PI*2); ctx.fill();
+      }
+
+      // mémoriser positions précédentes des mallets
+      world.m1.px = world.m1.x; world.m1.py = world.m1.y;
+      world.m2.px = world.m2.x; world.m2.py = world.m2.y;
+
+      requestAnimationFrame(frame);
+    }
+
+    // Kickoff
+    updateScore();
+    requestAnimationFrame(frame);
+  </script>
+
+  <p style="color:#fff;position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:14px;text-align:center;">
+    Ouvre cette page sur TV/PC (display). Les joueurs rejoignent via <code>controller.html</code> sur smartphone.
+  </p>
+</body>
+</html>
