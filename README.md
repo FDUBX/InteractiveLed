@@ -1,156 +1,64 @@
-# 🎨 InteractiveLED - Écran LED Interactif avec Style Transfer AI
+<div align="center">
 
-## 🚀 **Description**
+![InteractiveLED — phone-controlled two-player air hockey on a shared screen](assets/readme/hero.svg)
 
-Application web interactive permettant de dessiner sur un écran LED piloté par un Media Server Modulo Pi. L'interface utilise le tracé du doigt enrichi graphiquement avec de l'IA pour créer des effets visuels uniques en temps réel.
+**Your phones are the paddles. Your screen is the table — two-player air hockey over your local network.**
 
-## ✨ **Fonctionnalités**
-
-### **🎯 Interface Interactive**
-- **Page de Contrôle** : Dessin tactile sur mobile/tablette
-- **Page d'Affichage** : Rendu en temps réel sur l'écran LED
-- **Communication WebSocket** : Synchronisation instantanée
-
-### **🎨 Style Transfer AI**
-- **AdaIN (Adaptive Instance Normalization)** : Transfert de style en temps réel
-- **Styles Prédéfinis** : Van Gogh, Picasso, Monet, Kandinsky, Cyberpunk
-- **Fallback Mathématique** : Algorithme AdaIN basique si le modèle ONNX n'est pas disponible
-
-### **⚡ Rendu Haute Performance**
-- **PixiJS (WebGL)** : Accélération matérielle pour les effets visuels
-- **Particules Dynamiques** : Effets adaptés à chaque style
-- **Trails et Effets** : Traînées lumineuses et transformations visuelles
-
-### **⏰ Effets Temporels**
-- **FIFO Timeout** : Les traits "fondent" progressivement
-- **Timeout Configurable** : De 1 seconde à plusieurs minutes
-- **Effets en Temps Réel** : Même pendant le dessin continu
-
-## 🏗️ **Architecture**
-
-```
-InteractiveLED/
-├── server.js                 # Serveur Node.js + WebSocket
-├── package.json             # Dépendances
-├── public/
-│   ├── control.html         # Interface de contrôle mobile
-│   ├── display-pixi.html    # Page d'affichage LED
-│   ├── display-pixi.js      # Rendu PixiJS + effets
-│   ├── style-processor.js   # Processeur AdaIN + ONNX
-│   ├── models/              # Modèles ONNX
-│   └── styles/              # Images de référence de style
-```
-
-## 🚀 **Installation et Démarrage**
-
-### **1. Prérequis**
-- Node.js 18+ 
-- Navigateur moderne avec support WebGL
-
-### **2. Installation**
-```bash
-npm install
-```
-
-### **3. Démarrage**
-```bash
-npm start
-```
-
-### **4. Accès**
-- **Contrôle** : http://localhost:3000/control.html
-- **Affichage LED** : http://localhost:3000/display
-
-## 🎯 **Utilisation**
-
-### **Interface de Contrôle**
-1. Ouvre `control.html` sur ton mobile/tablette
-2. Dessine avec ton doigt sur la zone tactile
-3. Change de style avec le bouton "Style"
-4. Ajuste la taille du pinceau et la couleur
-5. Configure le timeout des effets
-
-### **Écran d'Affichage**
-1. Ouvre `display.html` sur l'écran LED
-2. Observe tes dessins en temps réel
-3. Vois les effets de particules et trails
-4. Les traits disparaissent selon le timeout configuré
-
-## 🔧 **Configuration**
-
-### **Styles Disponibles**
-- **Van Gogh** : Couleurs vives, impressionnisme
-- **Picasso** : Contrastes marqués, cubisme
-- **Monet** : Couleurs douces, luminosité
-- **Kandinsky** : Abstraction géométrique
-- **Cyberpunk** : Effets néon, futuriste
-
-### **Paramètres**
-- **Brush Size** : Taille du pinceau (1-20)
-- **Timeout** : Durée d'affichage des traits (1s-5min)
-- **Effects** : Intensité des effets visuels
-
-## 🎨 **Technologies Utilisées**
-
-### **Frontend**
-- **HTML5 Canvas** : Capture tactile
-- **PixiJS** : Rendu WebGL accéléré
-- **WebSocket** : Communication temps réel
-
-### **Backend**
-- **Node.js** : Serveur HTTP + WebSocket
-- **Express** : Framework web
-- **Socket.io** : Communication bidirectionnelle
-
-### **AI/ML**
-- **ONNX Runtime Web** : Exécution de modèles ML
-- **AdaIN** : Transfert de style neural
-- **Fallback Mathématique** : Algorithme AdaIN basique
-
-## 🔮 **Roadmap**
-
-### **Phase 1** ✅
-- [x] Interface de dessin tactile
-- [x] Communication WebSocket
-- [x] Rendu PixiJS basique
-- [x] Effets de particules
-
-### **Phase 2** ✅
-- [x] Intégration ONNX Runtime Web
-- [x] Processeur AdaIN
-- [x] Styles prédéfinis
-- [x] Fallback mathématique
-
-### **Phase 3** 🚧
-- [ ] Modèles ONNX pré-entraînés
-- [ ] WebGPU pour performance maximale
-- [ ] Styles personnalisés
-- [ ] Export des créations
-
-## 🐛 **Dépannage**
-
-### **Problèmes Courants**
-- **Dessin ne s'affiche pas** : Vérifie la connexion WebSocket
-- **Styles ne changent pas** : Vérifie la console pour les erreurs
-- **Performance lente** : Active WebGPU si disponible
-
-### **Logs Utiles**
-- Console du navigateur (F12)
-- Logs du serveur dans le terminal
-- Statut WebSocket dans l'interface
-
-## 📝 **Licence**
-
-MIT License - François Dubeaux
-
-## 🤝 **Contribution**
-
-Les contributions sont les bienvenues ! N'hésite pas à :
-- Signaler des bugs
-- Proposer des améliorations
-- Ajouter de nouveaux styles
-- Optimiser les performances
+Node.js + Express + Socket.IO · HTML5 Canvas · [`display.html`](public/display.html) · [`controller.html`](public/controller.html)
 
 ---
 
-**🎨 Créez de l'art interactif sur votre écran LED !** ✨
+</div>
+
+## What it is
+
+InteractiveLED turns any big screen into a real-time, two-player air-hockey table.
+Open the display page on a TV or laptop, then each player joins from their phone and
+uses the touchscreen as a paddle. Paddle positions stream to the display over
+Socket.IO, and the display runs the puck physics and keeps score.
+
+## How it works
+
+- **`server.js`** — an Express server that serves the `public/` folder and runs a
+  Socket.IO room. It enforces one display and two paddle sides (`left` / `right`),
+  clamps incoming controller coordinates, and relays them to the display.
+- **`public/display.html`** — the shared screen. Joins as the display, renders the
+  rink, puck, and mallets on an HTML5 Canvas, applies the controller positions, runs
+  the collision/physics loop, and tracks the score.
+- **`public/controller.html`** — the phone paddle. Sends normalized touch coordinates
+  at 40 Hz with a small deadband to cut redundant traffic.
+- **`indexxx.html`** — a standalone, single-screen variant (two players on one device
+  via drag or keyboard) with built-in self-tests.
+
+## Getting started
+
+```bash
+npm install
+npm start
+```
+
+The server listens on `http://localhost:3000` (override with the `PORT` environment
+variable).
+
+1. Open **`http://<host>:3000/display.html`** on the shared screen (TV or laptop).
+2. On each phone, open **`http://<host>:3000/controller.html`**, pick a side
+   (P1 left / P2 right), and tap **Rejoindre**.
+3. Drag on the phone to move your paddle. First side to defend its goal wins the rally.
+
+Replace `<host>` with the machine's LAN IP so phones on the same network can reach it.
+
+## Controls
+
+| Page | Player | Input |
+| --- | --- | --- |
+| `controller.html` | P1 / P2 | Drag anywhere on the touch pad |
+| `indexxx.html` | P1 | Drag in the left half, or `Z` `Q` `S` `D` |
+| `indexxx.html` | P2 | Drag in the right half, or arrow keys |
+
+An optional `logo.png` in `public/` replaces the puck with your image when present.
+
+## Tech stack
+
+- **Runtime:** Node.js
+- **Server:** Express 5, Socket.IO 4
+- **Client:** HTML5 Canvas, vanilla JavaScript (no build step)

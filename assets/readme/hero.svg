@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="100%" role="img" aria-label="InteractiveLED — two-player air hockey where phones become the paddles on a shared screen. Built with Node.js, Express, Socket.IO and HTML5 Canvas.">
+  <title>InteractiveLED — phone-controlled two-player air hockey on a shared screen</title>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0e12"/>
+      <stop offset="1" stop-color="#141b24"/>
+    </linearGradient>
+    <linearGradient id="rink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10161f"/>
+      <stop offset="1" stop-color="#0a0f16"/>
+    </linearGradient>
+    <radialGradient id="puckGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="0.55" stop-color="#7fe7d6" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#7fe7d6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="malletRed" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#ff7d94"/>
+      <stop offset="1" stop-color="#ff4d6d"/>
+    </radialGradient>
+    <radialGradient id="malletBlue" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#5aa9ff"/>
+      <stop offset="1" stop-color="#1e90ff"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Backdrop -->
+  <rect width="1200" height="440" fill="url(#bg)"/>
+
+  <!-- ===== Left: text ===== -->
+  <g font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif">
+    <text x="72" y="118" fill="#00ffcc" font-size="18" font-weight="700" letter-spacing="5">REAL-TIME MULTIPLAYER</text>
+
+    <text x="70" y="212" font-size="86" font-weight="800" letter-spacing="-1">
+      <tspan fill="#e6edf3">Interactive</tspan><tspan fill="#00ffcc">LED</tspan>
+    </text>
+
+    <text x="72" y="266" fill="#a9b1ba" font-size="25" font-weight="500">Your phones are the paddles. Your screen is the table.</text>
+    <text x="72" y="300" fill="#7f8994" font-size="20" font-weight="400">Two-player air hockey over your local network.</text>
+
+    <!-- Stack chips -->
+    <g font-size="15" font-weight="600">
+      <g transform="translate(72,342)">
+        <rect width="94" height="34" rx="17" fill="#1b232d" stroke="#2a313b"/>
+        <text x="47" y="22" fill="#c7cdd4" text-anchor="middle">Node.js</text>
+      </g>
+      <g transform="translate(176,342)">
+        <rect width="96" height="34" rx="17" fill="#1b232d" stroke="#2a313b"/>
+        <text x="48" y="22" fill="#c7cdd4" text-anchor="middle">Express 5</text>
+      </g>
+      <g transform="translate(282,342)">
+        <rect width="106" height="34" rx="17" fill="#1b232d" stroke="#2a313b"/>
+        <text x="53" y="22" fill="#c7cdd4" text-anchor="middle">Socket.IO</text>
+      </g>
+      <g transform="translate(398,342)">
+        <rect width="126" height="34" rx="17" fill="#1b232d" stroke="#2a313b"/>
+        <text x="63" y="22" fill="#c7cdd4" text-anchor="middle">HTML5 Canvas</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ===== Right: air-hockey rink motif ===== -->
+  <g transform="translate(742,60)">
+    <!-- Rink body -->
+    <rect x="0" y="0" width="386" height="320" rx="26" fill="url(#rink)" stroke="#2a313b" stroke-width="3"/>
+    <!-- Inner boundary -->
+    <rect x="16" y="16" width="354" height="288" rx="16" fill="none" stroke="#2a313b" stroke-width="2" stroke-opacity="0.7"/>
+
+    <!-- Center median (dashed, like the game) -->
+    <line x1="193" y1="24" x2="193" y2="296" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2" stroke-dasharray="8 10"/>
+    <!-- Center circle -->
+    <circle cx="193" cy="160" r="52" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+
+    <!-- Goals -->
+    <rect x="0" y="118" width="6" height="84" rx="3" fill="#ff4d6d" fill-opacity="0.5"/>
+    <rect x="380" y="118" width="6" height="84" rx="3" fill="#1e90ff" fill-opacity="0.5"/>
+
+    <!-- Puck motion trail -->
+    <circle cx="118" cy="212" r="9" fill="#7fe7d6" fill-opacity="0.10"/>
+    <circle cx="140" cy="200" r="10" fill="#7fe7d6" fill-opacity="0.16"/>
+    <circle cx="164" cy="185" r="11" fill="#7fe7d6" fill-opacity="0.24"/>
+
+    <!-- Puck with glow -->
+    <circle cx="196" cy="164" r="34" fill="url(#puckGlow)"/>
+    <circle cx="196" cy="164" r="15" fill="#ffffff"/>
+    <circle cx="196" cy="164" r="15" fill="none" stroke="#00ffcc" stroke-width="3"/>
+
+    <!-- Left mallet (red / P1) -->
+    <circle cx="86" cy="120" r="30" fill="url(#malletRed)"/>
+    <circle cx="86" cy="120" r="11" fill="#ffffff" fill-opacity="0.25"/>
+
+    <!-- Right mallet (blue / P2) -->
+    <circle cx="300" cy="208" r="30" fill="url(#malletBlue)"/>
+    <circle cx="300" cy="208" r="11" fill="#ffffff" fill-opacity="0.25"/>
+  </g>
+</svg>
